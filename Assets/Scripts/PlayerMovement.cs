@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -10,9 +11,14 @@ public class PlayerMovement : MonoBehaviour
     private SpriteRenderer sprite;
     private Animator anim;
 
+    bool isHurt;
+    bool canHurtEnemy;
+
     [SerializeField] private LayerMask jumpableGround;
 
     float dirX;
+    float hp = 3;
+
     [SerializeField] float moveSpeed = 7f;
     [SerializeField] float jumpSpeed = 14f;
 
@@ -22,7 +28,8 @@ public class PlayerMovement : MonoBehaviour
         idle,
         running,
         jumping,
-        falling
+        falling,
+        hit
     }
 
     // for gravity inversion
@@ -95,6 +102,31 @@ public class PlayerMovement : MonoBehaviour
         return Physics2D.BoxCast(coll.bounds.center, coll.bounds.size, 0f, Vector2.down, -0.1f, jumpableGround);
     }
 
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Enemy") && !canHurtEnemy)
+        {
+            hp -= 1;
+
+        }
+
+        if (collision.gameObject.CompareTag("Enemy") && hp >= 0 && !canHurtEnemy)
+        {
+            isHurt = true;
+            Invoke("Hurt", 0f);
+        }
+        else if (collision.gameObject.CompareTag("Enemy") && hp < 0 && !canHurtEnemy)
+        {
+            Die();
+        }
+
+        if (collision.gameObject.CompareTag("Enemy") && canHurtEnemy)
+        {
+            Destroy(collision.gameObject);
+            rb2d.AddForce(new Vector2(-dirX * 200f, 200f));
+        }
+    }
+
 
     /// <summary>
     /// Sets the animation state
@@ -122,13 +154,21 @@ public class PlayerMovement : MonoBehaviour
         // check for jumping
         if (rb2d.velocity.y > 0.1f && canInvert == true || rb2d.velocity.y < -0.1f && canInvert == false)
         {
+            canHurtEnemy = true;
             state = MovementState.jumping;
         }
 
         // check if falling
         else if (rb2d.velocity.y < -0.1f && canInvert == true || rb2d.velocity.y > 0.1f && canInvert == false)
         {
+            canHurtEnemy = true;
             state = MovementState.falling;
+        }
+
+        // check for hit
+        if (isHurt)
+        {
+            state = MovementState.hit;
         }
 
         anim.SetInteger("state", (int)state);
@@ -141,5 +181,38 @@ public class PlayerMovement : MonoBehaviour
     {
         rb2d.gravityScale *= -1;
         canInvert = true;
+    }
+
+
+    void Hurt()
+    {
+        rb2d.velocity = Vector2.zero;
+
+        if (dirX > 0f)
+        {
+            rb2d.AddForce(new Vector2(-200f, 200f));
+        }
+        else
+        {
+            rb2d.AddForce(new Vector2(200f, 200f));
+        }
+
+        Invoke("IsNotHurt", 0.5f);
+    }
+
+    void IsNotHurt()
+    {
+        isHurt = false;
+    }
+
+    private void Die()
+    {
+        rb2d.bodyType = RigidbodyType2D.Static;
+        anim.SetTrigger("death");
+    }
+
+    private void RestartLevel()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }
